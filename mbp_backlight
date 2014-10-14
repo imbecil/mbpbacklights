@@ -5,22 +5,13 @@
 # be overwritten.
 debugfile=`basename $0`.debug
 
-
 # no debug by default
 debug=""
 
-
-# screen light path (master path)
-#masterpath="/sys/class/backlight/gmux_backlight"
-# or
-# keyboard light path (master path)
-#masterpath="/sys/class/leds/smc::kbd_backlight"
-#
 # this will be set in 'getopts'
 # and this will be way to test if user
 # supplied mandatory opition '-k' or '-l'
 masterpath=""
-
 
 # in/decrease step (default: increase)
 light_step=""   # step absolute values; 8 or 32
@@ -28,7 +19,6 @@ step_direction=1 # step direction
 # we have to encode 'step' with two variables
 # to be insensitive to arguments order (see
 # 'getopts' below)
-
 
 function show_usage () {
 	echo "This small utility in/decreases keyboard/lcd backlight on MacBookPro 11,3."
@@ -46,6 +36,7 @@ function show_usage () {
 	echo "    -h         shows this help"
 }
 
+# parse options
 while getopts "klpms:dah" option; do
 	case $option in
 		k) masterpath="/sys/class/leds/smc::kbd_backlight"
@@ -65,7 +56,6 @@ while getopts "klpms:dah" option; do
 done
 
 ####################################
-
 # if '$masterpath' variable is empty,
 # user didnt specify mandatory -k|-l
 # option. So we silently exit.
@@ -79,14 +69,14 @@ light_min=0
 light_max=`cat $masterpath/max_brightness`
 light_current=`cat $masterpath/brightness`
 
-
 # calculate new backlight value
 if [ -z "$algorithm" ]
 then
-	# simply in/decrease
+	# simple in/decrease
 	light_new=`expr $light_current + $step_direction \* $light_step`
 else
 	# more advanced algorithm
+	# TODO: write an explanation for advanced algorithm
 	temp=4
 	temp1=`expr $temp - 1`
 	if [ "$step_direction" -gt "0" ]
@@ -97,8 +87,7 @@ else
 	fi
 fi
 
-
-# coerce 'light_new' between zero and 'light_max'
+# coerce: 0 <= 'light_new' <= 'light_max'
 #
 # too large?
 if [ "$light_new" -gt "$light_max" ]
@@ -111,9 +100,10 @@ then
 	light_new=$light_min
 fi
 
-
-#echo $light_new
+# set new backlight value
 echo $light_new > $masterpath/brightness
+
+# add debug info to file
 if [ -n "$debug" ]
 then
 	echo -n `date ` >> $debugfile
