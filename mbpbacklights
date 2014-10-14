@@ -1,0 +1,122 @@
+#!/bin/bash
+
+# file for debug output (should be command name
+# with '.debug' added). Note: this file will not
+# be overwritten.
+debugfile=`basename $0`.debug
+
+
+# no debug by default
+debug=""
+
+
+# screen light path (master path)
+#masterpath="/sys/class/backlight/gmux_backlight"
+# or
+# keyboard light path (master path)
+#masterpath="/sys/class/leds/smc::kbd_backlight"
+#
+# this will be set in 'getopts'
+# and this will be way to test if user
+# supplied mandatory opition '-k' or '-l'
+masterpath=""
+
+
+# in/decrease step (default: increase)
+light_step=""   # step absolute values; 8 or 32
+step_direction=1 # step direction
+# we have to encode 'step' with two variables
+# to be insensitive to arguments order (see
+# 'getopts' below)
+
+
+function show_usage () {
+	echo "This small utility in/decreases keyboard/lcd backlight on MacBookPro 11,3."
+	echo "Version 1.0 (`date`). Written by cico."
+	echo
+	echo "Usage: 	`basename $0` -k|-l [OPTIONS]"
+	echo
+	echo "where:"
+	echo "    -k|-l      keyboard|LCD backlight (mandatory option)"
+	echo "    -p         increase backlight value (default for lcd)"
+	echo "    -m         decrease backlight value (default for keyboard)"
+	echo "    -s value   in/decrease step for -p and -m (default=8 ie. 32 (keyb/lcd))"
+	echo "    -a         use alternative algorithm for new backglight values"
+	echo "    -d         debug to '$debugfile' in the same directory"
+	echo "    -h         shows this help"
+}
+
+while getopts "klpms:dah" option; do
+	case $option in
+		k) masterpath="/sys/class/leds/smc::kbd_backlight"
+		   light_step=8 
+		   step_direction=-1 ;;
+		l) masterpath="/sys/class/backlight/gmux_backlight"
+		   light_step=32 
+		   step_direction=1 ;;
+		s) light_step=$OPTARG ;;
+		m) step_direction=-1 ;;
+		p) step_direction=1 ;;
+		d) debug="true" ;;
+		a) algorithm="a" ;;
+		h) show_usage
+		   exit 0 ;;
+	esac
+done
+
+####################################
+
+# if '$masterpath' variable is empty,
+# user didnt specify mandatory -k|-l
+# option. So we silently exit.
+if [ -z "$masterpath" ]
+then
+	exit 0
+fi
+
+# discover current value, and max and min
+light_min=0
+light_max=`cat $masterpath/max_brightness`
+light_current=`cat $masterpath/brightness`
+
+
+# calculate new backlight value
+if [ -z "$algorithm" ]
+then
+	# simply in/decrease
+	light_new=`expr $light_current + $step_direction \* $light_step`
+else
+	# more advanced algorithm
+	temp=4
+	temp1=`expr $temp - 1`
+	if [ "$step_direction" -gt "0" ]
+	then
+		light_new=`expr $temp1 \* $light_current / $temp + $light_max / $temp`
+	else
+		light_new=`expr $temp1 \* $light_current / $temp + $light_min / $temp`
+	fi
+fi
+
+
+# coerce 'light_new' between zero and 'light_max'
+#
+# too large?
+if [ "$light_new" -gt "$light_max" ]
+then
+	light_new=$light_max
+fi
+# too small?
+if [ "$light_new" -lt "$light_min" ]
+then
+	light_new=$light_min
+fi
+
+
+#echo $light_new
+echo $light_new > $masterpath/brightness
+if [ -n "$debug" ]
+then
+	echo -n `date ` >> $debugfile
+	echo -n "; \"$*\"" >> $debugfile
+	echo "; new brightness: $light_new." >> $debugfile
+fi
